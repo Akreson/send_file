@@ -203,7 +203,7 @@ void write_file_loop(CommonBuff* FileBuff)
 		{
 			case BuffDataType::Name:
 			{
-				write_file.open((const char*)work_elem.mem, std::ofstream::out | std::ofstream::app | std::ofstream::binary);
+				write_file.open((const char*)work_elem.mem, std::ofstream::out | std::ofstream::binary);
 				if (!write_file.is_open())
 				{
 					printf("Can't open file\n");
@@ -451,7 +451,7 @@ void start_as_server()
 		if ((Recv.recved_bytes - prev_recv_border) >= (1 << 15))
 		{
 			prev_recv_border = Recv.recved_bytes;
-			printf("Accepted %d/%d\r", Recv.recved_bytes, Recv.file_size);
+			printf("Accepted %lld/%lld\r", Recv.recved_bytes, Recv.file_size);
 		}
 	}
 
@@ -652,7 +652,7 @@ void start_as_client(client_params conn_params, std::string& path)
 			if ((sent_byted - last_sent_border) >= (1 << 15))
 			{
 				last_sent_border = sent_byted;
-				printf("Accepted %d/%d\r", sent_byted, file_size);
+				printf("Accepted %lld/%lld\r", sent_byted, file_size);
 			}
 		} while (data_to_send);
 	}
@@ -665,7 +665,7 @@ void start_as_client(client_params conn_params, std::string& path)
 void print_help()
 {
 	printf("Start as server:\n");
-	printf("filesend -s -f [dir_path]");
+	printf("filesend -s -f [dir_path]\n");
 	printf("[dir_path] - path to directore where file will be saved\n");
 	printf("\n");
 	printf("Start as client:\n");
@@ -702,11 +702,19 @@ int main(int argc, char** argv)
 		{
 			if (fs::exists(params.file_path))
 			{
-				start_as_client(params.client_data, params.file_path);
+				if (fs::is_directory(params.file_path))
+				{
+					printf("Error: <%s> is a directory not a file\n", params.file_path.c_str());
+				}
+				else
+				{
+					start_as_client(params.client_data, params.file_path);
+				}
+
 			}
 			else
 			{
-				printf("Error: file <%s> don't exist\n", params.file_path);
+				printf("Error: file <%s> don't exist\n", params.file_path.c_str());
 			}
 		}
 		else
