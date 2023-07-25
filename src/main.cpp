@@ -489,8 +489,9 @@ struct read_loop_param
 {
 	CommonBuff* FileBuff;
 	std::string& path;
+	size_t file_size;
 
-	read_loop_param(CommonBuff* Buff, std::string& path_name) : FileBuff(Buff), path(path_name) {}
+	read_loop_param(CommonBuff* Buff, std::string& path_name, size_t file_size) : FileBuff(Buff), path(path_name), file_size(file_size) {}
 };
 
 void read_file_loop(read_loop_param& params)
@@ -508,12 +509,10 @@ void read_file_loop(read_loop_param& params)
 	buff_elem read_elem = {};
 	read_elem.mem = new u8[CommonBuff::BUFF_ELEM_SIZE];
 
-	size_t file_size = fs::file_size(params.path);
-	size_t left_to_read = file_size;
-	
+	size_t left_to_read = params.file_size;
 	while (left_to_read)
 	{
-		size_t offset = file_size - left_to_read;
+		size_t offset = params.file_size - left_to_read;
 		u32 read_size = (left_to_read > CommonBuff::BUFF_ELEM_SIZE) ? CommonBuff::BUFF_ELEM_SIZE : left_to_read;
 		left_to_read -= read_size;
 
@@ -575,7 +574,8 @@ void start_as_client(client_params conn_params, std::string& path)
 	sock_t connection = set_server_con(conn_params);
 	CommonBuff FileBuff(BUFF_LOG_SIZE);
 
-	read_loop_param loop_param(&FileBuff, path);
+	size_t file_size = fs::file_size(path);
+	read_loop_param loop_param(&FileBuff, path, file_size);
 	std::thread fs_reader = std::thread(read_file_loop, loop_param);
 
 	buff_elem send_elem = {};
@@ -583,6 +583,9 @@ void start_as_client(client_params conn_params, std::string& path)
 
 	ClientSendState SendState = {};
 	SendState.state = ClientProcessState::Init;
+
+	size_t sent_byted = 0;
+	size_t last_sent_border = 0;
 
 	while (1)
 	{
@@ -642,8 +645,15 @@ void start_as_client(client_params conn_params, std::string& path)
 				exit(EXIT_FAILURE);
 			}
 
+			sent_byted += sent_size;
 			SendState.read_ptr += sent_size;
 			data_to_send -= sent_size;
+
+			if ((sent_byted - last_sent_border) >= (1 << 15))
+			{
+				last_sent_border = sent_byted;
+				printf("Accepted %d/%d\r", sent_byted, file_size);
+			}
 		} while (data_to_send);
 	}
 
