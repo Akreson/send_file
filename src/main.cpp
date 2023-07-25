@@ -654,7 +654,14 @@ void start_as_client(client_params conn_params, std::string& path)
 
 void print_help()
 {
-
+	printf("Start as server:\n");
+	printf("filesend -s -f [dir_path]");
+	printf("[dir_path] - path to directore where file will be saved\n");
+	printf("\n");
+	printf("Start as client:\n");
+	printf("filesend -c -f [file_path] -a [server_addr]\n");
+	printf("[file_path] - file wich will be send\n");
+	printf("[server_addr] - server addres in format ip4:port\n");
 }
 
 int main(int argc, char** argv)
@@ -665,7 +672,6 @@ int main(int argc, char** argv)
 		return 0;
 	}
 
-	fs::path a = fs::current_path();
 	start_params params = {};
 	if (!parse_params(argc, argv, params)) return -1;
 
