@@ -29,12 +29,32 @@ using sock_t = int;
 #define closesocket close
 #endif
 
+#include <stdint.h>
+#include <stdio.h>
+#include <string>
+#include <vector>
+#include <thread>
+#include <mutex>
+#include <fstream>
+//#include <istream>
+//#include <iostream>
+#include <filesystem>
+
+#define Assert(Expression) if (!(Expression)) *((int *)0) = 0;
+
+#if 0
+#define DUBUG_PRINTF(str, ...) printf(str, ##__VA_ARGS__);
+#else
+#define DUBUG_PRINTF()
+#endif
+
 const char* get_error_text()
 {
 #if defined(_WIN32)
-	static char message[256];
+	static char message[2 << 10];
 	memset(message, 0, sizeof(message));
 	int error = WSAGetLastError();
+	printf("\nError code: %d", error);
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 0, error, 0, message, 256, 0);
 	char* nl = strrchr(message, '\n');
 	if (nl) *nl = 0;
@@ -60,17 +80,6 @@ void ShutdownSockets()
 	WSACleanup();
 #endif
 }
-
-#include <stdint.h>
-#include <stdio.h>
-#include <string>
-#include <vector>
-#include <thread>
-#include <mutex>
-#include <fstream>
-//#include <istream>
-//#include <iostream>
-#include <filesystem>
 
 namespace fs = std::filesystem;
 
