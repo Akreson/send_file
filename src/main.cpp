@@ -253,12 +253,14 @@ void start_as_server()
 
 	while (1)
 	{
+		DUBUG_PRINTF("FileBuff.capacity %d\n", (s32)FileBuff.capacity);
+
 		s32 buff_left = recv_buffer_size - (recv_ptr - recv_buffer);
 		s32 recv_len = recv(client_sock, (char *)recv_ptr, buff_left, 0);
 
 		if (IS_SOCKET_ERROR(recv_len))
 		{
-			printf("Error accept: %s\n", get_error_text());
+			printf("Error recv: %s\n", get_error_text());
 			exit(EXIT_FAILURE);
 		}
 		else if (recv_len == 0)
@@ -270,6 +272,14 @@ void start_as_server()
 			break;
 		}
 
+		DUBUG_PRINTF("recv_len: %d\n", recv_len);
+
+		u32 buff_ptr_diff = recv_ptr - Recv.read_ptr;
+		if (buff_ptr_diff)
+		{
+			recv_len += buff_ptr_diff;
+		}
+
 		u8* buff_end = recv_ptr + recv_len;
 		while (recv_len)
 		{
@@ -277,6 +287,8 @@ void start_as_server()
 			{
 				case ServerProcessState::Init:
 				{
+					DUBUG_PRINTF("-- Recv.state: Init\n");
+
 					const u32 header_size = sizeof(packet_header) + sizeof(packet_init);
 					if (recv_len >= header_size)
 					{
@@ -299,6 +311,7 @@ void start_as_server()
 						accept_elem.type = BuffDataType::Name;
 						accept_elem.size = body->name_len + 1;
 
+						DUBUG_PRINTF("filesize: %lld | name_len: %d\n", Recv.file_size, (s32)body->name_len);
 						if (recv_len >= body->name_len)
 						{
 							MemCopy(body->name_len, accept_elem.mem, Recv.read_ptr);
@@ -310,6 +323,7 @@ void start_as_server()
 							Recv.state = ServerProcessState::DataChunk;
 
 							FileBuff.push_buff(accept_elem);
+							DUBUG_PRINTF("read whole name | recv_len: %d\n", recv_len);
 						}
 						else
 						{
@@ -320,6 +334,8 @@ void start_as_server()
 
 							Recv.state = ServerProcessState::InitBody;
 							recv_len = 0;
+
+							DUBUG_PRINTF("name not read fully | name_len: %d | name_left: %d\n", (s32)Recv.init_body.name_len, (s32)Recv.init_body.name_left);
 						}
 
 						if (!recv_len) Recv.read_ptr = recv_ptr = recv_buffer;
@@ -333,6 +349,7 @@ void start_as_server()
 
 				case ServerProcessState::InitBody:
 				{
+					DUBUG_PRINTF("-- Recv.state: InitBody\n");
 					u8* write_ptr = accept_elem.mem + (Recv.init_body.name_len - Recv.init_body.name_left);
 
 					if (recv_len >= Recv.init_body.name_left)
@@ -346,12 +363,16 @@ void start_as_server()
 						Recv.state = ServerProcessState::DataChunk;
 
 						FileBuff.push_buff(accept_elem);
+
+						DUBUG_PRINTF("file name has been recved | recv_len: %d\n", recv_len);
 					}
 					else
 					{
 						MemCopy(recv_len, write_ptr, Recv.read_ptr);
 						Recv.init_body.name_left -= recv_len;
 						recv_len = 0;
+
+						DUBUG_PRINTF("file name still recving | name_len: %d | name_left: %d\n", (s32)Recv.init_body.name_len, (s32)Recv.init_body.name_left);
 					}
 
 					if (!recv_len) Recv.read_ptr = recv_ptr = recv_buffer;
@@ -359,6 +380,8 @@ void start_as_server()
 
 				case ServerProcessState::DataChunk:
 				{
+					DUBUG_PRINTF("-- Recv.state: DataChunk\n");
+
 					const u32 header_size = sizeof(packet_header) + sizeof(packet_data);
 					if (recv_len >= header_size)
 					{
@@ -366,18 +389,21 @@ void start_as_server()
 						Recv.read_ptr += sizeof(packet_header);
 						recv_len -= sizeof(packet_header);
 
+						packet_data* body = (packet_data*)Recv.read_ptr;
+
 						if (header->type != PacketType::Data)
 						{
-							printf("Error at read data header\n");
+							DUBUG_PRINTF("Error at read data header <%d> | body.size: %u\n", (s32)header->type, body->size);
 							exit(EXIT_FAILURE);
 						}
 
-						packet_data* body = (packet_data*)Recv.read_ptr;
 						Recv.read_ptr += sizeof(packet_data);
 						recv_len -= sizeof(packet_data);
 
 						accept_elem.size = body->size;
 						accept_elem.type = BuffDataType::Data;
+
+						DUBUG_PRINTF("chunk size: %d\n", accept_elem.size);
 						
 						if (recv_len >= body->size)
 						{
@@ -388,6 +414,8 @@ void start_as_server()
 							recv_len -= body->size;
 
 							FileBuff.push_buff(accept_elem);
+
+							DUBUG_PRINTF("full chunk recved | recv_len: %d\n", recv_len);
 						}
 						else
 						{
@@ -396,10 +424,12 @@ void start_as_server()
 							MemCopy(recv_len, accept_elem.mem, Recv.read_ptr);
 
 							Recv.data_body.size = body->size;
-							Recv.data_body.left = body->size - recv_len;
+							Recv.data_body.left = body->size - recv_len; // TODO: fix
 
 							Recv.state = ServerProcessState::OngoingData;
 							recv_len = 0;
+
+							DUBUG_PRINTF("chunk not fully recved | recv_len: %d | body.size: %u | body.left: %u\n", recv_len, Recv.data_body.size, Recv.data_body.left);
 						}
 
 						if (!recv_len) Recv.read_ptr = recv_ptr = recv_buffer;
@@ -407,9 +437,12 @@ void start_as_server()
 					else
 					{
 						u32 from_begin = Recv.read_ptr - recv_buffer;
+						DUBUG_PRINTF("from_begin: %u | recv_len: %d\n", from_begin, recv_len);
+
 						if (from_begin >= recv_len)
 						{
 							MemCopy(recv_len, recv_buffer, Recv.read_ptr);
+							Recv.read_ptr = recv_buffer;
 							buff_end = recv_buffer + recv_len;
 						}
 
@@ -420,6 +453,7 @@ void start_as_server()
 
 				case ServerProcessState::OngoingData:
 				{
+					DUBUG_PRINTF("-- Recv.state: OngoingData\n");
 					u8* write_ptr = accept_elem.mem + (Recv.data_body.size - Recv.data_body.left);
 
 					if (recv_len >= Recv.data_body.left)
@@ -433,6 +467,8 @@ void start_as_server()
 
 						Recv.state = ServerProcessState::DataChunk;
 						FileBuff.push_buff(accept_elem);
+
+						DUBUG_PRINTF("ongoing chunk has been recved | recv_len: %d\n", recv_len);
 					}
 					else
 					{
@@ -440,6 +476,8 @@ void start_as_server()
 
 						MemCopy(recv_len, write_ptr, Recv.read_ptr);
 						Recv.data_body.left -= recv_len;
+
+						DUBUG_PRINTF("ongoing chunk in progress | recv_len: %d | body.size: %u | body.left: %u\n", recv_len, Recv.data_body.size, Recv.data_body.left);
 						recv_len = 0;
 					}
 
@@ -451,9 +489,11 @@ void start_as_server()
 		if ((Recv.recved_bytes - prev_recv_border) >= (1 << 15))
 		{
 			prev_recv_border = Recv.recved_bytes;
-			printf("Accepted %lld/%lld\r", Recv.recved_bytes, Recv.file_size);
+			print_sent_status("Accepted", Recv.recved_bytes, Recv.file_size);
 		}
 	}
+
+	printf("End of recving process"); // todo: debug this path
 
 	fs_writer.join();
 
@@ -584,7 +624,7 @@ void start_as_client(client_params conn_params, std::string& path)
 	ClientSendState SendState = {};
 	SendState.state = ClientProcessState::Init;
 
-	size_t sent_byted = 0;
+	size_t sent_bytes = 0;
 	size_t last_sent_border = 0;
 
 	while (1)
@@ -634,6 +674,8 @@ void start_as_client(client_params conn_params, std::string& path)
 
 		if (!SendState.buff_size) break;
 
+		//Assert(SendState.buff_size <= CommonBuff::BUFF_ELEM_SIZE);
+
 		u32 data_to_send = SendState.buff_size;
 		do
 		{
@@ -641,20 +683,29 @@ void start_as_client(client_params conn_params, std::string& path)
 
 			if (IS_SOCKET_ERROR(sent_size))
 			{
-				printf("Error accept: %s\n", get_error_text());
+				printf("Error send: %s\n", get_error_text());
 				exit(EXIT_FAILURE);
 			}
 
-			sent_byted += sent_size;
+			sent_bytes += sent_size;
 			SendState.read_ptr += sent_size;
 			data_to_send -= sent_size;
 
-			if ((sent_byted - last_sent_border) >= (1 << 15))
+			if ((sent_bytes - last_sent_border) >= (1 << 15))
 			{
-				last_sent_border = sent_byted;
-				printf("Accepted %lld/%lld\r", sent_byted, file_size);
+				last_sent_border = sent_bytes;
+				print_sent_status("Sent", sent_bytes, file_size);
 			}
 		} while (data_to_send);
+	}
+
+	if (sent_bytes == file_size)
+	{
+		printf("entire file has been sent");
+	}
+	else
+	{
+		printf("file has't been sent entirely");
 	}
 
 	fs_reader.join();

@@ -288,3 +288,21 @@ struct CommonBuff
 		cv.notify_all();
 	}
 };
+
+void print_sent_status(const char* str, size_t at, size_t of, const char* end_chars = "\r")
+{
+	Assert((at > 0) && (of > 0))
+	size_t of_gib, of_mib, of_kib;
+	of_gib = of_mib = of_kib = of;
+	of_gib >>= 30;
+	of_mib = (of_mib - (of_gib << 30)) >> 20;
+	of_kib = (of_kib - (of_gib << 30) - (of_mib << 20)) >> 10;
+
+	size_t at_gib, at_mib, at_kib;
+	at_gib = at_mib = at_kib = at;
+	at_gib >>= 30;
+	at_mib = (at_mib - (at_gib << 30)) >> 20;
+	at_kib = (at_kib - (at_gib << 30) - (at_mib << 20)) >> 10;
+
+	printf("%s %llu.%llu.%llu / %llu.%llu.%llu (GiB.MiB.Kib)%s         ", str, at_gib, at_mib, at_kib, of_gib, of_mib, of_kib, end_chars);
+}
