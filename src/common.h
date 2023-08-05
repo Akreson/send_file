@@ -289,7 +289,7 @@ struct CommonBuff
 	}
 };
 
-void print_sent_status(const char* str, size_t at, size_t of, const char* end_chars = "\r")
+void snprint_sent_status(char* buff, u32 buff_size, u32* max_prev_len, const char* str, size_t at, size_t of)
 {
 	Assert((at > 0) && (of > 0))
 	size_t of_gib, of_mib, of_kib;
@@ -304,5 +304,26 @@ void print_sent_status(const char* str, size_t at, size_t of, const char* end_ch
 	at_mib = (at_mib - (at_gib << 30)) >> 20;
 	at_kib = (at_kib - (at_gib << 30) - (at_mib << 20)) >> 10;
 
-	printf("%s %llu.%llu.%llu / %llu.%llu.%llu (GiB.MiB.Kib)%s         ", str, at_gib, at_mib, at_kib, of_gib, of_mib, of_kib, end_chars);
+	u32 len = snprintf(buff, buff_size, "%s %llu.%llu.%llu / %llu.%llu.%llu (GiB.MiB.Kib)", str, at_gib, at_mib, at_kib, of_gib, of_mib, of_kib);
+	u32 max_len = *max_prev_len;
+
+	if (len > buff_size)
+	{
+		snprintf(buff, buff_size, "Buffer too small to display progress stats");
+	}
+	else if (len < max_len)
+	{
+		u32 diff = max_len - len;
+		char* space_fill = buff + len;
+		while (diff--)
+		{
+			*space_fill++ = ' ';
+		}
+
+		*space_fill = 0;
+	}
+	else
+	{
+		*max_prev_len = len;
+	}
 }

@@ -226,6 +226,9 @@ void write_file_loop(CommonBuff* FileBuff)
 
 void start_as_server()
 {
+	char progress_buff[256];
+	u32 max_progress_buff_len = 0;
+
 	sock_t sock = get_listen_socket(6520);
 	print_server_param(sock);
 
@@ -265,7 +268,8 @@ void start_as_server()
 		}
 		else if (recv_len == 0)
 		{
-			printf("connection has been closed\n");
+			printf("%s\n", progress_buff);
+			printf("Connection has been closed\n");
 
 			accept_elem.size = 0;
 			FileBuff.push_buff(accept_elem);
@@ -489,11 +493,19 @@ void start_as_server()
 		if ((Recv.recved_bytes - prev_recv_border) >= (1 << 15))
 		{
 			prev_recv_border = Recv.recved_bytes;
-			print_sent_status("Accepted", Recv.recved_bytes, Recv.file_size);
+			snprint_sent_status(progress_buff, sizeof(progress_buff), &max_progress_buff_len, "Accepted", Recv.recved_bytes, Recv.file_size);
+			printf("%s\r", progress_buff);
 		}
 	}
 
-	printf("End of recving process"); // todo: debug this path
+	if (Recv.recved_bytes == Recv.file_size)
+	{
+		printf("Entire file has been received");
+	}
+	else
+	{
+		printf("File hasn't been received entirely");
+	}
 
 	fs_writer.join();
 
@@ -599,7 +611,6 @@ u32 set_init_packet(u8* mem, std::string& path)
 
 	for (auto ch : file_name.string())
 	{
-		if (ch == 0) __debugbreak();
 		*write_ptr++ = ch;
 	}
 
@@ -609,7 +620,9 @@ u32 set_init_packet(u8* mem, std::string& path)
 
 void start_as_client(client_params conn_params, std::string& path)
 {
+	char progress_buff[256];
 	u8 header_buff[2 << 10];
+	u32 max_progress_buff_len = 0;
 
 	sock_t connection = set_server_con(conn_params);
 	CommonBuff FileBuff(BUFF_LOG_SIZE);
@@ -706,18 +719,20 @@ void start_as_client(client_params conn_params, std::string& path)
 			if ((file_sent_bytes - last_sent_border) >= (1 << 15))
 			{
 				last_sent_border = file_sent_bytes;
-				print_sent_status("Sent", file_sent_bytes, file_size);
+				snprint_sent_status(progress_buff, sizeof(progress_buff), &max_progress_buff_len, "Sent", file_sent_bytes, file_size);
+				printf("%s\r", progress_buff);
 			}
 		} while (data_to_send);
 	}
 
+	printf("%s\n", progress_buff);
 	if (file_sent_bytes == file_size)
 	{
-		printf("entire file has been sent");
+		printf("Entire file has been sent");
 	}
 	else
 	{
-		printf("file has't been sent entirely");
+		printf("File hasn't been sent entirely");
 	}
 
 	fs_reader.join();
@@ -732,7 +747,7 @@ void print_help()
 	printf("[dir_path] - path to directore where file will be saved\n");
 	printf("\n");
 	printf("Start as client:\n");
-	printf("filesend -c -f [file_path] -a [server_addr]\n");
+	printf("filesend -c -a [server_addr] -f [file_path]\n");
 	printf("[file_path] - file wich will be send\n");
 	printf("[server_addr] - server addres in format ip4:port\n");
 }
@@ -773,7 +788,6 @@ int main(int argc, char** argv)
 				{
 					start_as_client(params.client_data, params.file_path);
 				}
-
 			}
 			else
 			{
