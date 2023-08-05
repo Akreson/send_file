@@ -458,7 +458,7 @@ void start_as_server()
 
 					if (recv_len >= Recv.data_body.left)
 					{
-						Recv.recved_bytes += recv_len;
+						Recv.recved_bytes += Recv.data_body.left;
 
 						MemCopy(Recv.data_body.left, write_ptr, Recv.read_ptr);
 
