@@ -624,12 +624,14 @@ void start_as_client(client_params conn_params, std::string& path)
 	ClientSendState SendState = {};
 	SendState.state = ClientProcessState::Init;
 
-	size_t sent_bytes = 0;
+	size_t total_sent_bytes = 0;
+	size_t file_sent_bytes = 0;
 	size_t last_sent_border = 0;
 
 	while (1)
 	{
 		SendState.buff_size = 0;
+		u32 packet_header_size = 0;
 
 		switch (SendState.state)
 		{
@@ -639,6 +641,8 @@ void start_as_client(client_params conn_params, std::string& path)
 
 				SendState.set_buff(header_buff, buff_size);
 				SendState.state = ClientProcessState::DataHeader;
+
+				packet_header_size = SendState.buff_size;
 			} break;
 
 			case ClientProcessState::DataBody:
@@ -668,6 +672,8 @@ void start_as_client(client_params conn_params, std::string& path)
 
 					SendState.set_buff(header_buff, write_ptr - header_buff);
 					SendState.state = ClientProcessState::DataBody;
+
+					packet_header_size = SendState.buff_size;
 				}
 			} break;
 		}
@@ -687,19 +693,25 @@ void start_as_client(client_params conn_params, std::string& path)
 				exit(EXIT_FAILURE);
 			}
 
-			sent_bytes += sent_size;
+			total_sent_bytes += sent_size;
 			SendState.read_ptr += sent_size;
 			data_to_send -= sent_size;
 
-			if ((sent_bytes - last_sent_border) >= (1 << 15))
+			u32 sub = (sent_size >= packet_header_size) ? packet_header_size : sent_size;
+			packet_header_size -= sub;
+			sent_size -= sub;
+			
+			file_sent_bytes += sent_size;
+
+			if ((file_sent_bytes - last_sent_border) >= (1 << 15))
 			{
-				last_sent_border = sent_bytes;
-				print_sent_status("Sent", sent_bytes, file_size);
+				last_sent_border = file_sent_bytes;
+				print_sent_status("Sent", file_sent_bytes, file_size);
 			}
 		} while (data_to_send);
 	}
 
-	if (sent_bytes == file_size)
+	if (file_sent_bytes == file_size)
 	{
 		printf("entire file has been sent");
 	}
