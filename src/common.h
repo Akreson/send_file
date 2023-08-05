@@ -124,7 +124,7 @@ struct packet_init
 
 struct packet_data
 {
-	u32 size;
+	u16 size;
 };
 
 inline void
@@ -219,7 +219,7 @@ struct ClientSendState
 
 struct CommonBuff
 {
-	static constexpr u32 BUFF_ELEM_SIZE = 1 << 17;
+	static constexpr u16 BUFF_ELEM_SIZE = (1 << 16) - 1;
 
 	std::vector<buff_elem> buff;
 	u8* mem_pool;
